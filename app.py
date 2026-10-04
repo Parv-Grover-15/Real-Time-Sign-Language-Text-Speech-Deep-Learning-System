@@ -21,6 +21,7 @@ from config.settings import (
 )
 from src.detection.landmark_detector import LandmarkDetector
 from src.recognition.landmark_classifier import LandmarkClassifier
+from src.recognition.word_classifier import WordClassifier
 from src.recognition.lstm_classifier import LSTMAttentionClassifier
 from src.processing.stabilizer import PredictionStabilizer
 from src.processing.sentence_builder import SentenceBuilder
@@ -85,23 +86,29 @@ if "last_confidence" not in st.session_state:
     st.session_state.last_confidence = 0.0
 
 @st.cache_resource
-def load_recognition_pipeline():
-    detector = LandmarkDetector()
-    classifier = LandmarkClassifier()
-    return detector, classifier
+def load_landmark_detector():
+    return LandmarkDetector()
+
+@st.cache_resource
+def load_classifiers():
+    alphabet_model = LandmarkClassifier()
+    word_model = WordClassifier()
+    lstm_model = LSTMAttentionClassifier()
+    return alphabet_model, word_model, lstm_model
 
 def main():
     st.markdown('<div class="main-title">🤟 Real-Time Sign Language → Text → Speech AI</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Multi-modal Deep Learning Framework for Accessible Communication</div>', unsafe_allow_html=True)
 
-    detector, classifier = load_recognition_pipeline()
+    detector = load_landmark_detector()
+    alphabet_model, word_model, lstm_model = load_classifiers()
 
     # Sidebar Configuration Controls
     st.sidebar.header("⚙️ System Configuration")
 
-    model_type = st.sidebar.selectbox(
-        "Recognition Model Architecture",
-        ["PyTorch Landmark MLP (Signify)", "PyTorch LSTM + Attention (Sign-Bridge)"]
+    mode_selection = st.sidebar.radio(
+        "Target Recognition Mode",
+        ["📖 Full Word Sign Recognition", "🔤 Alphabet Fingerspelling (A-Z)", "🔄 PyTorch LSTM Sequence Motion"]
     )
 
     conf_threshold = st.sidebar.slider(
@@ -123,6 +130,14 @@ def main():
     enable_grammar = st.sidebar.checkbox("Enable Grammar Correction", value=True)
     cam_index = st.sidebar.number_input("Camera Index", min_value=0, max_value=5, value=0)
 
+    # Select active classifier based on mode
+    if "Full Word" in mode_selection:
+        active_classifier = word_model
+    elif "Alphabet" in mode_selection:
+        active_classifier = alphabet_model
+    else:
+        active_classifier = lstm_model
+
     # Instantiate Stabilizer
     stabilizer = PredictionStabilizer(
         window_size=window_size,
@@ -141,7 +156,7 @@ def main():
         sign_placeholder.markdown(
             f"""
             <div class="metric-card">
-                <span style="font-size: 0.9rem; color: #666;">Current Sign</span><br>
+                <span style="font-size: 0.9rem; color: #666;">Current Recognized Sign</span><br>
                 <span style="font-size: 1.8rem; font-weight: bold; color: #1565C0;">
                     {st.session_state.last_gesture}
                 </span>
@@ -195,8 +210,11 @@ def main():
                 st.session_state.corrected_text = st.session_state.grammar_corrector.correct_sentence(current_raw)
                 st.rerun()
 
-        with st.expander("ℹ️ Supported Signs & Reference"):
-            st.write("**Alphabet Signs (A-Z):** A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z")
+        with st.expander("ℹ️ Supported Signs & Mode Reference"):
+            if "Full Word" in mode_selection:
+                st.write("**Supported Word Signs (20 Words):** Hello, Thank You, Yes, No, Please, Help, Water, Love, Good, Bad, Stop, More, Book, Friend, Family, Home, School, Eat, Drink, Happy")
+            else:
+                st.write("**Supported Alphabet Signs (26 Letters):** A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z")
             st.write("**Control Gestures:** Space, Delete, Clear")
 
     with col_cam:
@@ -230,7 +248,7 @@ def main():
 
                 if raw_landmarks is not None:
                     # Model Inference
-                    predicted_sign, conf, _ = classifier.predict(raw_landmarks)
+                    predicted_sign, conf, _ = active_classifier.predict(raw_landmarks)
                     if predicted_sign and conf >= conf_threshold:
                         current_sign = predicted_sign
                         confidence = conf
@@ -254,9 +272,11 @@ def main():
                 st.session_state.last_confidence = confidence
 
                 # Overlay status text on video
-                cv2.putText(annotated_frame, f"Sign: {current_sign} ({confidence*100:.1f}%)", (10, 35),
+                cv2.putText(annotated_frame, f"Mode: {mode_selection.split()[1]}", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(annotated_frame, f"Sign: {current_sign} ({confidence*100:.1f}%)", (10, 65),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                cv2.putText(annotated_frame, f"FPS: {fps:.1f}", (10, 70),
+                cv2.putText(annotated_frame, f"FPS: {fps:.1f}", (10, 100),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 165, 0), 2)
 
                 frame_window.image(annotated_frame, channels="BGR", use_container_width=True)
@@ -270,7 +290,7 @@ def main():
                 sign_placeholder.markdown(
                     f"""
                     <div class="metric-card">
-                        <span style="font-size: 0.9rem; color: #666;">Current Sign</span><br>
+                        <span style="font-size: 0.9rem; color: #666;">Current Recognized Sign</span><br>
                         <span style="font-size: 1.8rem; font-weight: bold; color: #1565C0;">
                             {current_sign}
                         </span>

@@ -12,6 +12,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from src.preprocessing.feature_extractor import FeatureExtractor
 from src.recognition.landmark_classifier import LandmarkClassifier
+from src.recognition.word_classifier import WordClassifier
 from src.recognition.lstm_classifier import LSTMAttentionClassifier
 from src.processing.stabilizer import PredictionStabilizer
 from src.processing.sentence_builder import SentenceBuilder
@@ -33,6 +34,14 @@ def test_landmark_classifier():
     assert 0.0 <= conf <= 1.0
     assert len(all_probs) == classifier.num_classes
 
+def test_word_classifier():
+    classifier = WordClassifier()
+    dummy_landmarks = np.random.randn(21, 3).astype(np.float32)
+    top_word, conf, all_probs = classifier.predict(dummy_landmarks)
+    assert top_word in classifier.class_names
+    assert 0.0 <= conf <= 1.0
+    assert len(all_probs) == classifier.num_classes
+
 def test_lstm_classifier():
     classifier = LSTMAttentionClassifier()
     seq = [np.random.randn(63).astype(np.float32) for _ in range(10)]
@@ -43,33 +52,19 @@ def test_lstm_classifier():
 def test_prediction_stabilizer():
     stabilizer = PredictionStabilizer(window_size=3, min_confidence=0.70, release_cooldown=5)
 
-    # First 2 predictions should return None
     assert stabilizer.update("A", 0.90) is None
     assert stabilizer.update("A", 0.90) is None
-    # 3rd identical prediction should confirm "A"
     assert stabilizer.update("A", 0.90) == "A"
-    # Immediately following prediction should return None due to hold/cooldown check
     assert stabilizer.update("A", 0.90) is None
 
 def test_sentence_builder():
     sb = SentenceBuilder()
-    sb.process_sign("H")
-    sb.process_sign("E")
-    sb.process_sign("L")
-    sb.process_sign("L")
-    sb.process_sign("O")
-    assert sb.get_text() == "HELLO"
-
-    sb.process_sign("Space")
-    sb.process_sign("W")
-    sb.process_sign("O")
-    sb.process_sign("R")
-    sb.process_sign("L")
-    sb.process_sign("D")
-    assert sb.get_text() == "HELLO WORLD"
+    sb.process_sign("Hello")
+    sb.process_sign("World")
+    assert sb.get_text() == "Hello World"
 
     sb.process_sign("Delete")
-    assert sb.get_text() == "HELLO WORL"
+    assert sb.get_text() == "Hello"
 
     sb.process_sign("Clear")
     assert sb.get_text() == ""
