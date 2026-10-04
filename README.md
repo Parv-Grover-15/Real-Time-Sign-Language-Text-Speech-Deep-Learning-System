@@ -78,7 +78,7 @@ sign-language-ai/
 │       └── tts_engine.py          # Threaded local pyttsx3 engine
 ├── training/
 │   ├── train_mlp.py            # MLP model training script
-│   └── train_lstm_attention.py # LSTM + Attention training script
+│   └── train_lstm_attention.py # PyTorch LSTM + Attention training script
 ├── tests/
 │   ├── test_components.py      # Unit tests for all modules
 │   └── test_pipeline.py        # End-to-end integration test
@@ -97,13 +97,18 @@ pip install -r requirements.txt
 ```
 
 ### 2. Run the Streamlit UI
+Run via Python module (recommended on Windows):
+```bash
+python -m streamlit run app.py
+```
+Or directly:
 ```bash
 streamlit run app.py
 ```
 
 ### 3. Run Automated Tests
 ```bash
-python -m pytest tests/
+python -m pytest tests/ -v
 ```
 
 ---
